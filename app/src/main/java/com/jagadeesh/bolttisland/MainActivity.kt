@@ -32,9 +32,6 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.sqrt
 
 class MainActivity : Activity(), SensorEventListener {
@@ -57,14 +54,8 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var shakeButton: Button
     private lateinit var overlayButton: Button
     private lateinit var torchButton: Button
+    private lateinit var displayInfo: TextView
     private lateinit var root: LinearLayout
-    private val handler = Handler(Looper.getMainLooper())
-    private val clockTick = object : Runnable {
-        override fun run() {
-            updatePillStatus()
-            handler.postDelayed(this, 30_000L)
-        }
-    }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply {
@@ -162,6 +153,20 @@ class MainActivity : Activity(), SensorEventListener {
         root.addView(hero)
         addGap(root, 18)
 
+        val diagnostics = card()
+        diagnostics.addView(label("DISPLAY & CAMERA CUTOUT", 17f, Color.WHITE, true))
+        addGap(diagnostics, 6)
+        diagnostics.addView(label("Read the phone's actual pixel dimensions, density, safe insets and camera cutout bounds. These values will guide accurate island placement.", 13f, 0xFFB4B6C6.toInt()))
+        addGap(diagnostics, 12)
+        val inspectButton = actionButton("Measure screen and cutout", true)
+        diagnostics.addView(inspectButton, LinearLayout.LayoutParams(-1, dp(48)))
+        addGap(diagnostics, 10)
+        displayInfo = label("Not measured yet. Tap the button above.", 12f, 0xFFD8D9E4.toInt())
+        diagnostics.addView(displayInfo)
+        inspectButton.setOnClickListener { inspectDisplay() }
+        root.addView(diagnostics)
+        addGap(root, 14)
+
         val status = card()
         status.addView(label("LIVE DEVICE STATUS", 11f, 0xFFB9A9FF.toInt(), true))
         addGap(status, 12)
@@ -237,6 +242,53 @@ class MainActivity : Activity(), SensorEventListener {
         root.addView(label("BOLTT ISLAND  ·  BUILT FOR YOUR DEVICE", 10f, 0xFF777B8E.toInt(), true).apply { gravity = Gravity.CENTER })
         setContentView(scroll)
     }
+
+    private fun inspectDisplay() {
+        displayInfo.text = "Reading Android display information…"
+        val decor = window.decorView
+        decor.requestApplyInsets()
+        decor.post {
+            val metrics = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManagerDefaultDisplay()?.getRealMetrics(metrics)
+            val density = resources.displayMetrics.density
+            val densityDpi = resources.displayMetrics.densityDpi
+            val rotation = if (Build.VERSION.SDK_INT >= 30) display?.rotation ?: 0 else {
+                @Suppress("DEPRECATION")
+                windowManagerDefaultDisplay()?.rotation ?: 0
+            }
+            val origin = IntArray(2)
+            decor.getLocationOnScreen(origin)
+            val details = StringBuilder()
+            details.append("SCREEN (physical pixels)\\n")
+            details.append("Width: ${metrics.widthPixels}px  |  Height: ${metrics.heightPixels}px\\n")
+            details.append("Logical size: ${(metrics.widthPixels / density).toInt()} × ${(metrics.heightPixels / density).toInt()} dp\\n")
+            details.append("Density: ${"%.2f".format(java.util.Locale.US, density)}  |  ${densityDpi} dpi\\n")
+            details.append("Rotation: ${rotation}  |  App window origin: ${origin[0]}, ${origin[1]} px\\n\\n")
+            if (Build.VERSION.SDK_INT >= 28) {
+                val cutout = decor.rootWindowInsets?.displayCutout
+                if (cutout == null) {
+                    details.append("DISPLAY CUTOUT\\nNo cutout data reported by Android yet. Tap Measure again after the screen settles.")
+                } else {
+                    details.append("DISPLAY CUTOUT (pixel bounds)\\n")
+                    details.append("Safe insets: L ${cutout.safeInsetLeft}  T ${cutout.safeInsetTop}  R ${cutout.safeInsetRight}  B ${cutout.safeInsetBottom} px\\n")
+                    val rects = cutout.boundingRects
+                    if (rects.isEmpty()) details.append("Bounding rectangles: none reported\\n")
+                    else rects.forEachIndexed { index, rect ->
+                        details.append("Cutout ${index + 1}: left=${rect.left}, top=${rect.top}, right=${rect.right}, bottom=${rect.bottom} px\\n")
+                        details.append("  Size: ${rect.width()} × ${rect.height()} px; centre: ${rect.centerX()}, ${rect.centerY()} px\\n")
+                    }
+                }
+            } else {
+                details.append("DISPLAY CUTOUT\\nAndroid API 28+ is required for cutout bounds.")
+            }
+            displayInfo.text = details.toString()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun windowManagerDefaultDisplay(): android.view.Display? =
+        (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
 
     private fun refreshFlash() {
         flashId = try {
@@ -332,7 +384,7 @@ class MainActivity : Activity(), SensorEventListener {
         }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(label("●", 10f, 0xFF9A83FF.toInt(), true))
-        overlayLabel = label("  BOLTT  ·  READY", 12f, Color.WHITE, true)
+        overlayLabel = label("  BOLTT ISLAND  ·  READY", 11f, Color.WHITE, true)
         header.addView(overlayLabel, LinearLayout.LayoutParams(0, dp(25), 1f))
         overlayMeta = label("●", 10f, 0xFF80DDB4.toInt(), true)
         header.addView(overlayMeta)
@@ -391,8 +443,6 @@ class MainActivity : Activity(), SensorEventListener {
         overlayExpanded = false
         overlayButton.text = "Disable floating island"
         updatePillStatus()
-        handler.removeCallbacks(clockTick)
-        handler.post(clockTick)
     }
 
     private fun pillAction(symbol: String, title: String) = TextView(this).apply {
@@ -440,14 +490,7 @@ class MainActivity : Activity(), SensorEventListener {
     }
 
     private fun updatePillStatus() {
-        val time = SimpleDateFormat("h:mm", Locale.getDefault()).format(Date())
-        val battery = try {
-            val intent = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val level = intent?.getIntExtra("level", -1) ?: -1
-            val scale = intent?.getIntExtra("scale", 100) ?: 100
-            if (level >= 0) "${(level * 100 / scale)}%" else ""
-        } catch (_: Exception) { "" }
-        overlayLabel?.text = if (torchOn) "  TORCH  ·  ON" else "  $time  ·  $battery"
+        overlayLabel?.text = if (torchOn) "  TORCH  ·  ON" else "  BOLTT ISLAND  ·  READY"
         overlayMeta?.text = if (torchOn) "●" else "◆"
     }
 
@@ -459,7 +502,6 @@ class MainActivity : Activity(), SensorEventListener {
     }
 
     private fun removeOverlay() {
-        handler.removeCallbacks(clockTick)
         try { overlayView?.let { windowManager?.removeView(it) } } catch (_: Exception) {}
         overlayView = null; overlayParams = null; overlayHeader = null
         overlayLabel = null; overlayMeta = null; overlayExpanded = false
