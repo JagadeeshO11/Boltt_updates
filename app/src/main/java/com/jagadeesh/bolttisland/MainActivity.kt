@@ -54,7 +54,6 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var shakeButton: Button
     private lateinit var overlayButton: Button
     private lateinit var torchButton: Button
-    private lateinit var displayInfo: TextView
     private lateinit var root: LinearLayout
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -124,7 +123,7 @@ class MainActivity : Activity(), SensorEventListener {
             addView(label("Made for your Boltt Ace 5G", 12f, 0xFF9DA0B3.toInt()))
         }
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        val version = label("2.2", 12f, 0xFFD7D0FF.toInt(), true).apply {
+        val version = label("2.3", 12f, 0xFFD7D0FF.toInt(), true).apply {
             setPadding(dp(12), dp(7), dp(12), dp(7)); background = rounded(0xFF29243E.toInt(), 30)
         }
         top.addView(version)
@@ -153,18 +152,6 @@ class MainActivity : Activity(), SensorEventListener {
         root.addView(hero)
         addGap(root, 18)
 
-        val diagnostics = card()
-        diagnostics.addView(label("DISPLAY & CAMERA CUTOUT", 17f, Color.WHITE, true))
-        addGap(diagnostics, 6)
-        diagnostics.addView(label("Read the phone's actual pixel dimensions, density, safe insets and camera cutout bounds. These values will guide accurate island placement.", 13f, 0xFFB4B6C6.toInt()))
-        addGap(diagnostics, 12)
-        val inspectButton = actionButton("Measure screen and cutout", true)
-        diagnostics.addView(inspectButton, LinearLayout.LayoutParams(-1, dp(48)))
-        addGap(diagnostics, 10)
-        displayInfo = label("Not measured yet. Tap the button above.", 12f, 0xFFD8D9E4.toInt())
-        diagnostics.addView(displayInfo)
-        inspectButton.setOnClickListener { inspectDisplay() }
-        root.addView(diagnostics)
         addGap(root, 14)
 
         val status = card()
@@ -242,55 +229,6 @@ class MainActivity : Activity(), SensorEventListener {
         root.addView(label("BOLTT ISLAND  ·  BUILT FOR YOUR DEVICE", 10f, 0xFF777B8E.toInt(), true).apply { gravity = Gravity.CENTER })
         setContentView(scroll)
     }
-
-    private fun inspectDisplay() {
-        displayInfo.text = "Reading Android display information…"
-        val decor = window.decorView
-        decor.requestApplyInsets()
-        decor.post {
-            val metrics = readRealDisplayMetrics()
-            val density = resources.displayMetrics.density
-            val densityDpi = resources.displayMetrics.densityDpi
-            val rotation = readDisplayRotation()
-            val origin = IntArray(2)
-            decor.getLocationOnScreen(origin)
-            val details = StringBuilder()
-            details.append("SCREEN (physical pixels)\\n")
-            details.append("Width: ${metrics.widthPixels}px  |  Height: ${metrics.heightPixels}px\\n")
-            details.append("Logical size: ${(metrics.widthPixels / density).toInt()} × ${(metrics.heightPixels / density).toInt()} dp\\n")
-            details.append("Density: ${"%.2f".format(java.util.Locale.US, density)}  |  ${densityDpi} dpi\\n")
-            details.append("Rotation: ${rotation}  |  App window origin: ${origin[0]}, ${origin[1]} px\\n\\n")
-            if (Build.VERSION.SDK_INT >= 28) {
-                val cutout = decor.rootWindowInsets?.displayCutout
-                if (cutout == null) {
-                    details.append("DISPLAY CUTOUT\\nNo cutout data reported by Android yet. Tap Measure again after the screen settles.")
-                } else {
-                    details.append("DISPLAY CUTOUT (pixel bounds)\\n")
-                    details.append("Safe insets: L ${cutout.safeInsetLeft}  T ${cutout.safeInsetTop}  R ${cutout.safeInsetRight}  B ${cutout.safeInsetBottom} px\\n")
-                    val rects = cutout.boundingRects
-                    if (rects.isEmpty()) details.append("Bounding rectangles: none reported\\n")
-                    else rects.forEachIndexed { index, rect ->
-                        details.append("Cutout ${index + 1}: left=${rect.left}, top=${rect.top}, right=${rect.right}, bottom=${rect.bottom} px\\n")
-                        details.append("  Size: ${rect.width()} × ${rect.height()} px; centre: ${rect.centerX()}, ${rect.centerY()} px\\n")
-                    }
-                }
-            } else {
-                details.append("DISPLAY CUTOUT\\nAndroid API 28+ is required for cutout bounds.")
-            }
-            displayInfo.text = details.toString()
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun windowManagerDefaultDisplay(): android.view.Display? =
-        (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
-
-    @Suppress("DEPRECATION")
-    private fun readRealDisplayMetrics(): android.util.DisplayMetrics =
-        android.util.DisplayMetrics().also { windowManagerDefaultDisplay()?.getRealMetrics(it) }
-
-    @Suppress("DEPRECATION")
-    private fun readDisplayRotation(): Int = windowManagerDefaultDisplay()?.rotation ?: 0
 
     private fun refreshFlash() {
         flashId = try {
@@ -399,35 +337,39 @@ class MainActivity : Activity(), SensorEventListener {
         }
         val flash = pillAction("⚡", "Torch")
         val music = pillAction("♫", "Music")
-        val close = pillAction("×", "Close")
-        actions.addView(flash, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
-        actions.addView(music, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
-        actions.addView(close, LinearLayout.LayoutParams(0, dp(42), 1f))
+        val timer = pillAction("◷", "Timer")
+        val bluetooth = pillAction("ᛒ", "Bluetooth")
+        actions.addView(flash, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(4) })
+        actions.addView(music, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(4) })
+        actions.addView(timer, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(4) })
+        actions.addView(bluetooth, LinearLayout.LayoutParams(0, dp(44), 1f))
         pill.addView(actions)
         actions.visibility = View.GONE
         header.setOnClickListener { overlayExpanded = !overlayExpanded; actions.visibility = if (overlayExpanded) View.VISIBLE else View.GONE; updateOverlaySize() }
         flash.setOnClickListener { requestTorchToggle() }
         music.setOnClickListener { openMusicApp() }
-        close.setOnClickListener { removeOverlay() }
+        timer.setOnClickListener { openTimer() }
+        bluetooth.setOnClickListener { openBluetoothSettings() }
         makeDraggable(header)
 
-        val metrics = android.util.DisplayMetrics()
-        @Suppress("DEPRECATION")
-        windowManager?.defaultDisplay?.getRealMetrics(metrics)
-        val screenCenter = metrics.widthPixels / 2
-        var cutoutCenter = screenCenter
-        var cutoutTop = -1
-        if (Build.VERSION.SDK_INT >= 28) {
-            val cutout = window.decorView.rootWindowInsets?.displayCutout
-            val rect = cutout?.boundingRects?.maxByOrNull { it.width() * it.height() }
-            if (rect != null) {
-                cutoutCenter = rect.centerX()
-                cutoutTop = rect.centerY() - dp(21)
-            }
-        }
+        // The Boltt Ace punch-hole is horizontally centred. Do not combine a
+        // cutout X offset with CENTER_HORIZONTAL: that double-offsets the pill.
+        // DisplayCutout bounds are in the activity window coordinate space.
+        val decor = window.decorView
+        val decorLocation = IntArray(2)
+        decor.getLocationOnScreen(decorLocation)
+        val cutoutRect = if (Build.VERSION.SDK_INT >= 28) {
+            decor.rootWindowInsets?.displayCutout?.boundingRects
+                ?.minByOrNull { kotlin.math.abs(it.centerX() - decor.width / 2) + it.top * 2 }
+        } else null
         val statusBarId = resources.getIdentifier("status_bar_height", "dimen", "android")
         val statusBarHeight = if (statusBarId > 0) resources.getDimensionPixelSize(statusBarId) else dp(24)
-        val topY = if (cutoutTop >= 0) cutoutTop.coerceAtLeast(0) else statusBarHeight + dp(3)
+        val pillHalfHeight = dp(22)
+        val topY = if (cutoutRect != null) {
+            (decorLocation[1] + cutoutRect.centerY() - pillHalfHeight).coerceAtLeast(0)
+        } else {
+            (statusBarHeight / 2 - pillHalfHeight).coerceAtLeast(0)
+        }
         val params = WindowManager.LayoutParams(
             dp(174), WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -436,7 +378,7 @@ class MainActivity : Activity(), SensorEventListener {
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             y = topY
-            x = cutoutCenter - screenCenter
+            x = 0
             if (Build.VERSION.SDK_INT >= 28) layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
         windowManager?.addView(pill, params)
@@ -500,6 +442,20 @@ class MainActivity : Activity(), SensorEventListener {
         val intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)
         try { startActivity(intent) } catch (_: Exception) {
             Toast.makeText(this, "No music player app found.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openTimer() {
+        val intent = Intent(android.provider.AlarmClock.ACTION_SET_TIMER)
+            .putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+        try { startActivity(intent) } catch (_: Exception) {
+            Toast.makeText(this, "No clock timer app found.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openBluetoothSettings() {
+        try { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) } catch (_: Exception) {
+            Toast.makeText(this, "Bluetooth settings are unavailable.", Toast.LENGTH_SHORT).show()
         }
     }
 
