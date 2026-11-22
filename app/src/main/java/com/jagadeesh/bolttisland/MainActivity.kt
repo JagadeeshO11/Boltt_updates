@@ -248,15 +248,10 @@ class MainActivity : Activity(), SensorEventListener {
         val decor = window.decorView
         decor.requestApplyInsets()
         decor.post {
-            val metrics = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            windowManagerDefaultDisplay()?.getRealMetrics(metrics)
+            val metrics = readRealDisplayMetrics()
             val density = resources.displayMetrics.density
             val densityDpi = resources.displayMetrics.densityDpi
-            val rotation = if (Build.VERSION.SDK_INT >= 30) display?.rotation ?: 0 else {
-                @Suppress("DEPRECATION")
-                windowManagerDefaultDisplay()?.rotation ?: 0
-            }
+            val rotation = readDisplayRotation()
             val origin = IntArray(2)
             decor.getLocationOnScreen(origin)
             val details = StringBuilder()
@@ -289,6 +284,13 @@ class MainActivity : Activity(), SensorEventListener {
     @Suppress("DEPRECATION")
     private fun windowManagerDefaultDisplay(): android.view.Display? =
         (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
+
+    @Suppress("DEPRECATION")
+    private fun readRealDisplayMetrics(): android.util.DisplayMetrics =
+        android.util.DisplayMetrics().also { windowManagerDefaultDisplay()?.getRealMetrics(it) }
+
+    @Suppress("DEPRECATION")
+    private fun readDisplayRotation(): Int = windowManagerDefaultDisplay()?.rotation ?: 0
 
     private fun refreshFlash() {
         flashId = try {
