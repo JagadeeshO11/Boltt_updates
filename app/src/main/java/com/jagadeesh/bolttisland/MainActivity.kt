@@ -124,7 +124,7 @@ class MainActivity : Activity(), SensorEventListener {
             addView(label("Made for your Boltt Ace 5G", 12f, 0xFF9DA0B3.toInt()))
         }
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        val version = label("2.1", 12f, 0xFFD7D0FF.toInt(), true).apply {
+        val version = label("2.2", 12f, 0xFFD7D0FF.toInt(), true).apply {
             setPadding(dp(12), dp(7), dp(12), dp(7)); background = rounded(0xFF29243E.toInt(), 30)
         }
         top.addView(version)
@@ -190,7 +190,7 @@ class MainActivity : Activity(), SensorEventListener {
         island.addView(overlayButton, LinearLayout.LayoutParams(-1, dp(50)))
         overlayButton.setOnClickListener { toggleOverlay() }
         addGap(island, 10)
-        island.addView(label("Includes torch, battery and clock, music shortcut, drag positioning and quick expand/collapse.", 12f, 0xFF9296A8.toInt()))
+        island.addView(label("Includes torch, music shortcut, drag positioning and quick expand/collapse. No duplicated status-bar clock or battery.", 12f, 0xFF9296A8.toInt()))
         root.addView(island)
         addGap(root, 14)
 
