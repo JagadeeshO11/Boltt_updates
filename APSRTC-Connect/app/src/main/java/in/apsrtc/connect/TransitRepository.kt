@@ -123,9 +123,7 @@ class TransitRepository(private val context: Context) {
                 zip.closeEntry()
             }
         }
-        matches.mapNotNull { id -> routes.firstOrNull { it.id == id } }
-            .map { if (it.shortName.isNotBlank()) "${it.shortName} • ${it.longName}" else it.longName.ifBlank { it.id } }
-            .distinct().take(30)
+        matches.mapNotNull { id -> routes.firstOrNull { it.id == id } }.distinctBy { it.id }.take(30)
     }
 
     suspend fun status(): String = withContext(Dispatchers.IO) { get("$base/apsrtc/rt/status.json") }
