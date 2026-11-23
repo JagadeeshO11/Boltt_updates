@@ -16,6 +16,9 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -41,6 +44,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor=bg; window.navigationBarColor=bg
+        WindowCompat.setDecorFitsSystemWindows(window,false)
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),44)
         AlarmScheduler.rescheduleAll(this); render()
@@ -72,6 +76,12 @@ class MainActivity : Activity() {
             nav.addView(t(label,11f,if(tab==key)Color.WHITE else muted,tab==key).apply{gravity=Gravity.CENTER;setPadding(0,dp(12),0,dp(12));if(tab==key)background=shape(Color.rgb(55,53,105),13);setOnClickListener{tab=key;render()}},LinearLayout.LayoutParams(0,dp(46),1f))
         }
         root.addView(nav);setContentView(root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(0, bars.top, 0, bars.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
         when(tab){"CALENDAR"->calendarPage();"ALARMS"->alarmsPage();"SHIFT"->shiftPage();else->routinePage()}
     }
 
@@ -80,6 +90,13 @@ class MainActivity : Activity() {
         val top=h();top.addView(t("MONTH VIEW",11f,Color.rgb(174,164,255),true));top.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
         top.addView(btn("TODAY").apply{setOnClickListener{selectedDate=today;visibleMonth=YearMonth.from(today);render()}})
         content.addView(top);content.addView(gap(9))
+        val shortcuts=card();val shortcutRow=h()
+        shortcutRow.addView(btn("🍱 Meals",true).apply{setOnClickListener{addMealSet()}},LinearLayout.LayoutParams(0,dp(42),1f))
+        shortcutRow.addView(View(this),LinearLayout.LayoutParams(dp(6),1))
+        shortcutRow.addView(btn("💧 Water").apply{setOnClickListener{waterReminderDialog()}},LinearLayout.LayoutParams(0,dp(42),1f))
+        shortcutRow.addView(View(this),LinearLayout.LayoutParams(dp(6),1))
+        shortcutRow.addView(btn("↻ Roster").apply{setOnClickListener{quickRoster()}},LinearLayout.LayoutParams(0,dp(42),1f))
+        shortcuts.addView(shortcutRow);content.addView(shortcuts);content.addView(gap(9))
         val cal=card();val mh=h()
         mh.addView(btn("‹").apply{setOnClickListener{visibleMonth=visibleMonth.minusMonths(1);selectedDate=visibleMonth.atDay(1);render()}},LinearLayout.LayoutParams(dp(44),dp(42)))
         val title=v().apply{gravity=Gravity.CENTER}
@@ -180,9 +197,51 @@ class MainActivity : Activity() {
             render()
         }.show()
     }
+    private fun quickRoster(){
+        val choices=arrayOf("Day shift","Night shift","Week off","Clear roster")
+        android.app.AlertDialog.Builder(this).setTitle("Apply shift to consecutive dates")
+            .setItems(choices){_,which->
+                val type=when(which){0->"DAY";1->"NIGHT";2->"OFF";else->"NOT_SET"}
+                val picker=android.app.DatePickerDialog(this,{_,year,month,day->
+                    val start=LocalDate.of(year,month+1,day)
+                    val count=NumberPicker(this).apply{minValue=1;maxValue=31;value=7;wrapSelectorWheel=false}
+                    val wrap=v().apply{setPadding(dp(22),dp(8),dp(22),dp(4));addView(t("Number of consecutive days",14f,Color.WHITE,true));addView(count,LinearLayout.LayoutParams(-1,dp(90)))}
+                    android.app.AlertDialog.Builder(this).setTitle("Roster duration").setView(wrap).setNegativeButton("Cancel",null).setPositiveButton("Apply"){_,_->
+                        val edit=prefs.edit();for(offset in 0 until count.value){val date=start.plusDays(offset.toLong());edit.putString("shift_"+date,type);if(date==LocalDate.now())edit.putString("shift_type",type)};edit.apply()
+                        selectedDate=start;visibleMonth=YearMonth.from(start);render();Toast.makeText(this,"Applied to ${count.value} dates",Toast.LENGTH_SHORT).show()
+                    }.show()
+                },selectedDate.year,selectedDate.monthValue-1,selectedDate.dayOfMonth)
+                picker.show()
+            }.show()
+    }
+    private fun waterReminderDialog(){
+        val current=prefs.getInt("water_interval_hours",2).coerceIn(1,4)
+        val value=t("Every $current hour(s)",16f,Color.WHITE,true)
+        val slider=SeekBar(this).apply{max=3;progress=current-1}
+        slider.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener{
+            override fun onProgressChanged(seekBar:SeekBar?,progress:Int,fromUser:Boolean){value.text="Every ${progress+1} hour(s)"}
+            override fun onStartTrackingTouch(seekBar:SeekBar?){}
+            override fun onStopTrackingTouch(seekBar:SeekBar?){}
+        })
+        val body=v().apply{setPadding(dp(22),dp(8),dp(22),dp(4));addView(t("Reminder frequency",12f,muted));addView(value);addView(slider);addView(t("Daily reminders from 08:00 to 20:00",11f,muted))}
+        android.app.AlertDialog.Builder(this).setTitle("Water reminder setup").setView(body).setNegativeButton("Cancel",null).setPositiveButton("Set reminders"){_,_->
+            val interval=slider.progress+1;prefs.edit().putInt("water_interval_hours",interval).apply();createWaterSet(interval);requestExact();render();Toast.makeText(this,"Water reminders set every $interval hour(s)",Toast.LENGTH_SHORT).show()
+        }.show()
+    }
+    private fun createWaterSet(interval:Int){
+        AlarmStore.all(this).filter{it.category=="WATER"}.forEach{AlarmStore.remove(this,it.id)}
+        var hour=8
+        while(hour<=20){AlarmStore.add(this,"Drink water","%02d:00".format(hour),"WATER");hour+=interval}
+    }
 
     private fun alarmsPage(){
-        content.addView(t("Your reminders",24f,Color.WHITE,true));content.addView(t("Daily alarms for shifts, meals and personal tasks.",13f,muted));content.addView(gap(13))
+        content.addView(t("Your reminders",24f,Color.WHITE,true));content.addView(t("Daily alarms for shifts, meals and personal tasks.",13f,muted));content.addView(gap(10))
+        val quick=card();quick.addView(t("QUICK SETUP",11f,Color.rgb(174,164,255),true));quick.addView(gap(8))
+        val qr=h()
+        qr.addView(btn("🍱 Set meal alarms",true).apply{setOnClickListener{addMealSet()}},LinearLayout.LayoutParams(0,dp(44),1f))
+        qr.addView(View(this),LinearLayout.LayoutParams(dp(7),1))
+        qr.addView(btn("💧 Water alarms").apply{setOnClickListener{waterReminderDialog()}},LinearLayout.LayoutParams(0,dp(44),1f))
+        quick.addView(qr);quick.addView(gap(6));quick.addView(t("Meal and water controls stay here at the top, not buried at the bottom.",11f,muted));content.addView(quick);content.addView(gap(12))
         content.addView(btn("＋ Create alarm",true).apply{setOnClickListener{addAlarmDialog()}});content.addView(gap(10))
         val all=AlarmStore.all(this).sortedBy{it.time}
         if(all.isEmpty())content.addView(emptyCard("No reminders yet","Create your first alarm or add the meal reminder set."))
@@ -222,7 +281,13 @@ class MainActivity : Activity() {
     private fun emptyCard(a:String,b:String):View=card().apply{addView(t(a,17f,Color.WHITE,true));addView(t(b,13f,muted))}
     private fun addAlarmDialog(){val input=EditText(this).apply{hint="Reminder name";setTextColor(Color.WHITE)};android.app.AlertDialog.Builder(this).setTitle("New reminder").setView(input).setNegativeButton("Cancel",null).setPositiveButton("Continue"){_,_->pickTime("07:00"){AlarmStore.add(this,input.text.toString().trim().ifBlank{"Daily reminder"},it,"CUSTOM");requestExact();render()}}.show()}
     private fun editAlarm(a:ShiftAlarm){val input=EditText(this).apply{setText(a.title);setTextColor(Color.WHITE)};android.app.AlertDialog.Builder(this).setTitle("Edit reminder").setView(input).setNegativeButton("Cancel",null).setPositiveButton("Continue"){_,_->pickTime(a.time){AlarmStore.update(this,a.copy(title=input.text.toString().trim().ifBlank{a.title},time=it));render()}}.show()}
-    private fun addMealSet(){if(AlarmStore.all(this).any{it.category=="FOOD"}){tab="ALARMS";render();Toast.makeText(this,"Meal reminders already exist.",Toast.LENGTH_LONG).show();return};AlarmStore.add(this,"Breakfast / meal 1","07:30","FOOD");AlarmStore.add(this,"Lunch / meal 2","13:00","FOOD");AlarmStore.add(this,"Dinner / meal 3","20:30","FOOD");requestExact();tab="ALARMS";render()}
+    private fun addMealSet(){
+        val existing=AlarmStore.all(this).filter{it.category=="FOOD"}
+        if(existing.isNotEmpty()){
+            tab="ALARMS";render();Toast.makeText(this,"Meal alarms are already set. Edit or delete them below.",Toast.LENGTH_LONG).show();return
+        }
+        AlarmStore.add(this,"Breakfast / meal 1","07:30","FOOD");AlarmStore.add(this,"Lunch / meal 2","13:00","FOOD");AlarmStore.add(this,"Dinner / meal 3","20:30","FOOD");requestExact();tab="ALARMS";render()
+    }
     private fun upsert(title:String,time:String,cat:String){val old=AlarmStore.all(this).firstOrNull{it.title==title};if(old==null)AlarmStore.add(this,title,time,cat)else AlarmStore.update(this,old.copy(time=time,enabled=true))}
     private fun requestExact(){if(Build.VERSION.SDK_INT>=31){val m=getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager;if(!m.canScheduleExactAlarms())try{startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName")))}catch(_:Exception){}}}
     override fun onResume(){super.onResume();AlarmScheduler.rescheduleAll(this)}
