@@ -91,7 +91,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val notification = NotificationCompat.Builder(context, channel)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(alarm.title)
-            .setContentText(if (alarm.category == "FOOD") "Meal time. Take a proper food break." else "Your scheduled reminder is due.")
+            .setContentText(when (alarm.category) { "FOOD" -> "Meal time. Take a proper food break."; "WATER" -> "Time to drink some water."; else -> "Your scheduled reminder is due." })
             .setContentIntent(open).setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM).build()
         manager.notify(alarm.id, notification)
