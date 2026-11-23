@@ -145,7 +145,8 @@ fun SearchScreen(
     modifier: Modifier, telugu: Boolean, loading: Boolean, initialError: String, stops: List<Stop>,
     from: String, to: String, onFrom: (String) -> Unit, onTo: (String) -> Unit,
     selectFrom: (Stop) -> Unit, selectTo: (Stop) -> Unit, origin: Stop?, destination: Stop?,
-    results: List<String>, search: () -> Unit, error: String
+    results: List<BusRoute>, search: () -> Unit, favorites: Set<String>, toggleFavorite: (String) -> Unit,
+    nearbyStops: List<Stop>, findNearby: () -> Unit, error: String
 ) {
     Column(modifier.fillMaxSize().padding(16.dp)) {
         Text(if (telugu) "మీ ప్రయాణాన్ని ప్లాన్ చేయండి" else "Plan your journey", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
