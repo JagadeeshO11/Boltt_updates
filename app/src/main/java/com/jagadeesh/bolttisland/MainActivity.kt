@@ -198,7 +198,7 @@ class MainActivity : Activity() {
         c.addView(button("Create shift start & end alarms", true).apply { setOnClickListener {
             upsertNamedAlarm("Shift starts", shiftStart(), "SHIFT")
             upsertNamedAlarm("Shift ends", shiftEnd(), "SHIFT")
-            render()
+            promptExactAlarmAccess(); render()
         } })
         content.addView(c); content.addView(gap(14))
         val info = card()
@@ -245,16 +245,16 @@ class MainActivity : Activity() {
         note.addView(row); content.addView(note)
     }
 
-    private fun emptyCard(title: String, desc: String) {
+    private fun emptyCard(title: String, desc: String): View {
         val c = card(); c.addView(text(title, 17f, Color.WHITE, true)); c.addView(text(desc, 13f, muted))
-        content.addView(c)
+        return c
     }
 
     private fun addAlarmDialog() {
         val input = EditText(this).apply { hint = "Reminder name (e.g. Leave for work)"; setTextColor(Color.WHITE); setHintTextColor(muted) }
         AlertDialogBuilder(this).showInput("New reminder", input) {
             val title = input.text.toString().trim().ifBlank { "Daily reminder" }
-            pickTime("07:00") { time -> AlarmStore.add(this, title, time, "CUSTOM"); render() }
+            pickTime("07:00") { time -> AlarmStore.add(this, title, time, "CUSTOM"); promptExactAlarmAccess(); render() }
         }
     }
     private fun editAlarmDialog(a: ShiftAlarm) {
@@ -281,7 +281,24 @@ class MainActivity : Activity() {
         if (old == null) AlarmStore.add(this, title, time, category)
         else AlarmStore.update(this, old.copy(time = time, enabled = true))
     }
-    private fun promptExactAlarmAccess() {\n        if (Build.VERSION.SDK_INT >= 31) {\n            val manager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager\n            if (!manager.canScheduleExactAlarms()) {\n                try { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { }\n            }\n        }\n    }\n\n    override fun onResume() {\n        super.onResume()\n        AlarmScheduler.rescheduleAll(this)\n    }\n\n    private fun pickTime(current: String, done: (String) -> Unit) {
+    private fun promptExactAlarmAccess() {
+        if (Build.VERSION.SDK_INT >= 31) {
+            val manager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            if (!manager.canScheduleExactAlarms()) {
+                try {
+                    startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        android.net.Uri.parse("package:$packageName")))
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AlarmScheduler.rescheduleAll(this)
+    }
+
+    private fun pickTime(current: String, done: (String) -> Unit) {
         val p = current.split(":")
         TimePickerDialog(this, { _, h, m -> done("%02d:%02d".format(h, m)) },
             p.getOrNull(0)?.toIntOrNull() ?: 7, p.getOrNull(1)?.toIntOrNull() ?: 0, true).show()
