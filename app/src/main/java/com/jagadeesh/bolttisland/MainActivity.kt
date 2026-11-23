@@ -10,6 +10,10 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.os.Handler
+import android.os.Looper
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -27,6 +31,17 @@ class MainActivity : Activity() {
     private var running = false
     private var torchOn = false
     private var sensitivity = 70
+    private lateinit var cameraManager: CameraManager
+    private var flashId: String? = null
+    private var manualTorchOwned = false
+    private val torchCallback = object : CameraManager.TorchCallback() {
+        override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
+            if (cameraId == flashId) { torchOn = enabled; if (!enabled) manualTorchOwned = false; render() }
+        }
+        override fun onTorchModeUnavailable(cameraId: String) {
+            if (cameraId == flashId) { torchOn = false; manualTorchOwned = false; render() }
+        }
+    }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -65,6 +80,8 @@ class MainActivity : Activity() {
         window.statusBarColor = 0xFF10111A.toInt()
         window.navigationBarColor = 0xFF10111A.toInt()
         sensitivity = getPreferences(MODE_PRIVATE).getInt("sensitivity", 70).coerceIn(0, 100)
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        findFlash()
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(26), dp(20), dp(28))
@@ -117,7 +134,7 @@ class MainActivity : Activity() {
         torchButton.setOnClickListener {
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
                 requestPermissions(arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
-            else sendService(ShakeTorchService.ACTION_TOGGLE_TORCH)
+            else if (running) sendService(ShakeTorchService.ACTION_TOGGLE_TORCH) else toggleManualTorch()
         }
         page.addView(torch); page.addView(gap(16))
 
@@ -133,6 +150,25 @@ class MainActivity : Activity() {
         ))
         setContentView(page)
         render()
+    }
+
+    private fun findFlash() {
+        flashId = try { cameraManager.cameraIdList.firstOrNull { cameraManager.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true } } catch (_: Exception) { null }
+    }
+
+    private fun toggleManualTorch() {
+        val id = flashId ?: run { Toast.makeText(this, "No camera flash found.", Toast.LENGTH_SHORT).show(); return }
+        if (torchOn && !manualTorchOwned) { Toast.makeText(this, "Flash is already controlled by Android or another app.", Toast.LENGTH_SHORT).show(); return }
+        try {
+            val next = !manualTorchOwned
+            cameraManager.setTorchMode(id, next)
+            manualTorchOwned = next
+            torchOn = next
+            render()
+        } catch (_: Exception) {
+            manualTorchOwned = false
+            Toast.makeText(this, "Flash is busy or unavailable. Try again when the camera is free.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun startOrStop() {
@@ -174,10 +210,12 @@ class MainActivity : Activity() {
         val filter = IntentFilter(ShakeTorchService.ACTION_STATE)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         else @Suppress("DEPRECATION") registerReceiver(receiver, filter)
-        sendBroadcast(Intent(ShakeTorchService.ACTION_QUERY).setPackage(packageName))
+        cameraManager.registerTorchCallback(torchCallback, Handler(Looper.getMainLooper()))
+        startService(Intent(this, ShakeTorchService::class.java).setAction(ShakeTorchService.ACTION_QUERY))
     }
 
     override fun onPause() {
+        try { cameraManager.unregisterTorchCallback(torchCallback) } catch (_: Exception) {}
         try { unregisterReceiver(receiver) } catch (_: Exception) {}
         super.onPause()
     }
