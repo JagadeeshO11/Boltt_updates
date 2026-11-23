@@ -9,8 +9,8 @@ android {
         applicationId = "com.jagadeesh.bolttisland"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "2.5"
+        versionCode = 7
+        versionName = "3.0"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
@@ -18,4 +18,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
 }
