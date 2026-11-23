@@ -64,7 +64,7 @@ class ShakeTorchService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_QUERY -> publish()
+            ACTION_QUERY -> { publish(); if (!listening) stopSelf() }
             ACTION_STOP -> { stopMonitoring(); stopSelf(); return START_NOT_STICKY }
             ACTION_SET_SENSITIVITY -> {
                 sensitivity = intent.getIntExtra(EXTRA_SENSITIVITY, sensitivity).coerceIn(0, 100)
