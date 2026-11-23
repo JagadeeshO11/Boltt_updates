@@ -92,7 +92,7 @@ class TransitRepository(private val context: Context) {
         return out
     }
 
-    suspend fun findRoutes(origin: Stop, destination: Stop, routes: List<BusRoute>): List<String> = withContext(Dispatchers.IO) {
+    suspend fun findRoutes(origin: Stop, destination: Stop, routes: List<BusRoute>): List<BusRoute> = withContext(Dispatchers.IO) {
         val cache = java.io.File(context.cacheDir, "apsrtc.zip")
         val tripRoutes = HashMap<String, String>()
         ZipInputStream(cache.inputStream().buffered()).use { zip ->
