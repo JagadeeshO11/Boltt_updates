@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,7 +86,10 @@ fun APSRTCApp() {
         runCatching { val data = repo.loadStaticData(); stops = data.first; routes = data.second }
             .onFailure { error = it.message ?: "Could not load APSRTC route data" }
         loading = false
-        refreshLive()
+        while (true) {
+            refreshLive()
+            delay(30_000)
+        }
     }
 
     MaterialTheme(colorScheme = lightColorScheme(
@@ -185,6 +189,7 @@ fun SearchScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StopAutocomplete(label: String, value: String, stops: List<Stop>, onValue: (String) -> Unit, onSelect: (Stop) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
