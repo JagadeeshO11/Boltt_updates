@@ -247,7 +247,7 @@ class MainActivity : Activity() {
         if(all.isEmpty())content.addView(emptyCard("No reminders yet","Create your first alarm or add the meal reminder set."))
         all.forEach{a->
             val c=card();val r=h();val info=v()
-            info.addView(t(a.time,24f,Color.WHITE,true));info.addView(t(a.title,15f,Color.WHITE,true));info.addView(t(if(a.category=="FOOD")"MEAL REMINDER" else if(a.category=="SHIFT")"SHIFT REMINDER" else "PERSONAL",10f,muted,true))
+            info.addView(t(a.time,24f,Color.WHITE,true));info.addView(t(a.title,15f,Color.WHITE,true));info.addView(t(if(a.category=="FOOD")"MEAL REMINDER" else if(a.category=="WATER")"WATER REMINDER" else if(a.category=="SHIFT")"SHIFT REMINDER" else "PERSONAL",10f,muted,true))
             r.addView(info,LinearLayout.LayoutParams(0,-2,1f));r.addView(Switch(this).apply{isChecked=a.enabled;setOnCheckedChangeListener{_,checked->AlarmStore.update(this@MainActivity,a.copy(enabled=checked));render()}})
             c.addView(r);c.addView(gap(8));val actions=h()
             actions.addView(btn("Edit").apply{setOnClickListener{editAlarm(a)}},LinearLayout.LayoutParams(0,dp(40),1f));actions.addView(View(this),LinearLayout.LayoutParams(dp(7),1))
