@@ -113,8 +113,7 @@ class MainActivity : Activity(), SensorEventListener {
         val hero = card()
         hero.addView(text("SHAKE. FLASH. DONE.", 11f, 0xFFC6B9FF.toInt(), true))
         hero.addView(space(9))
-        hero.addView(text("Your flashlight,
-one quick shake away.", 27f, Color.WHITE, true))
+        hero.addView(text("Your flashlight,\\none quick shake away.", 27f, Color.WHITE, true))
         hero.addView(space(8))
         hero.addView(text(
             "Motion detection works while this app is open. No floating overlay or accessibility access needed.",
