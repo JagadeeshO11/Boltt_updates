@@ -5,6 +5,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.location.LocationServices
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,7 +53,18 @@ fun APSRTCApp() {
     var destination by remember { mutableStateOf<Stop?>(null) }
     var originText by remember { mutableStateOf("") }
     var destinationText by remember { mutableStateOf("") }
-    var routeResults by remember { mutableStateOf<List<String>>(emptyList()) }
+    var routeResults by remember { mutableStateOf<List<BusRoute>>(emptyList()) }
+    var nearbyStops by remember { mutableStateOf<List<Stop>>(emptyList()) }
+    val fusedLocation = remember { LocationServices.getFusedLocationProviderClient(context) }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants.values.any { it }) fusedLocation.lastLocation.addOnSuccessListener { loc ->
+            if (loc != null) nearbyStops = stops.sortedBy { stop ->
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(loc.latitude, loc.longitude, stop.lat, stop.lon, results)
+                results[0]
+            }.take(10)
+        }
+    }
     var arrivals by remember { mutableStateOf<List<Arrival>>(emptyList()) }
     var favorites by remember { mutableStateOf(repo.favorites()) }
     var selectedBus by remember { mutableStateOf<LiveBus?>(null) }
@@ -110,6 +124,8 @@ fun APSRTCApp() {
                     { origin = it; originText = it.name }, { destination = it; destinationText = it.name },
                     origin, destination, routeResults,
                     { scope.launch { if (origin != null && destination != null) runCatching { routeResults = repo.findRoutes(origin!!, destination!!, routes) }.onFailure { error = it.message ?: "Route search failed" } } },
+                    favorites, { id -> favorites = repo.toggleFavorite(id) },
+                    nearbyStops, { locationPermission.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)) },
                     error
                 )
                 1 -> MapScreen(Modifier.padding(padding), buses, selectedBus) { selectedBus = it }
@@ -134,6 +150,14 @@ fun SearchScreen(
         StopAutocomplete(if (telugu) "ఎక్కడి నుంచి?" else "From", from, stops, onFrom, selectFrom)
         Spacer(Modifier.height(10.dp))
         StopAutocomplete(if (telugu) "ఎక్కడికి?" else "To", to, stops, onTo, selectTo)
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = findNearby, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.MyLocation, null); Spacer(Modifier.width(8.dp)); Text(if (telugu) "దగ్గరలోని బస్ స్టాప్‌లు" else "Find nearby bus stops")
+        }
+        if (nearbyStops.isNotEmpty()) {
+            Text(if (telugu) "దగ్గరలోని స్టాప్‌లు" else "Nearby stops", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            nearbyStops.forEach { Text("• ${it.name}", Modifier.padding(vertical = 2.dp)) }
+        }
         Spacer(Modifier.height(12.dp))
         Button(onClick = search, enabled = origin != null && destination != null, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text(if (telugu) "బస్సులు వెతకండి" else "Find buses")
@@ -143,7 +167,20 @@ fun SearchScreen(
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
         if (results.isNotEmpty()) {
             Spacer(Modifier.height(16.dp)); Text("Matching services", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            results.forEach { ElevatedCard(Modifier.fillMaxWidth().padding(vertical = 4.dp)) { Text(it, Modifier.padding(14.dp)) } }
+            results.forEach { route ->
+                ElevatedCard(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(route.shortName.ifBlank { route.id }, fontWeight = FontWeight.Bold)
+                            Text(route.longName, style = MaterialTheme.typography.bodySmall)
+                        }
+                        IconButton(onClick = { toggleFavorite(route.id) }) {
+                            Icon(if (favorites.contains(route.id)) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Toggle favourite")
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -179,7 +216,20 @@ fun LiveScreen(modifier: Modifier, status: String, buses: List<LiveBus>, arrival
                 HorizontalDivider()
             }
         }
-        if (arrivals.isNotEmpty()) Text("${arrivals.size} stop arrival updates available", style = MaterialTheme.typography.labelMedium)
+        if (arrivals.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text("Arrival predictions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            arrivals.take(35).forEach { arrival ->
+                val stopName = stops.firstOrNull { it.id == arrival.stopId }?.name ?: arrival.stopId
+                val time = arrival.arrivalEpoch?.let { SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(it * 1000)) } ?: "Time unavailable"
+                ListItem(
+                    headlineContent = { Text(stopName) },
+                    supportingContent = { Text("Route ${arrival.routeId.ifBlank { "unmatched" }} • ${time}") },
+                    trailingContent = { arrival.delay?.let { Text(if (it >= 0) "+${it / 60}m" else "${it / 60}m") } }
+                )
+                HorizontalDivider()
+            }
+        }
     }
 }
 
@@ -224,7 +274,7 @@ fun FavoritesScreen(modifier: Modifier, favorites: Set<String>, routes: List<Bus
         LazyColumn {
             items(favorites.toList()) { id ->
                 val route = routes.firstOrNull { it.id == id }
-                ListItem(headlineContent = { Text(route?.shortName?.ifBlank { route.longName } ?: id) },
+                ListItem(headlineContent = { Text(route?.let { it.shortName.ifBlank { it.longName } } ?: id) },
                     supportingContent = { Text(route?.longName.orEmpty()) },
                     trailingContent = { IconButton(onClick = { toggle(id) }) { Icon(Icons.Default.Favorite, "Remove favourite") } })
             }
