@@ -121,7 +121,12 @@ class MainActivity : Activity() {
         hero.addView(button("Edit shift plan", true).apply { setOnClickListener { tab = "SHIFT"; render() } })
         content.addView(hero); content.addView(gap(14))
 
-        val next = AlarmStore.all(this).filter { it.enabled }.sortedBy { it.time }.firstOrNull()
+        val nowMinutes = Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
+        val next = AlarmStore.all(this).filter { it.enabled }.minByOrNull { alarm ->
+            val p = alarm.time.split(":")
+            val mins = (p.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (p.getOrNull(1)?.toIntOrNull() ?: 0)
+            (mins - nowMinutes + 1440) % 1440
+        }
         val alarmCard = card()
         alarmCard.addView(label("NEXT REMINDER"))
         alarmCard.addView(gap(7))
@@ -273,7 +278,8 @@ class MainActivity : Activity() {
         AlarmStore.add(this, "Breakfast / meal 1", "07:30", "FOOD")
         AlarmStore.add(this, "Lunch / meal 2", "13:00", "FOOD")
         AlarmStore.add(this, "Dinner / meal 3", "20:30", "FOOD")
-        promptExactAlarmAccess()\n        Toast.makeText(this, "3 meal reminders added. Adjust times for your shift.", Toast.LENGTH_LONG).show()
+        promptExactAlarmAccess()
+        Toast.makeText(this, "3 meal reminders added. Adjust times for your shift.", Toast.LENGTH_LONG).show()
         tab = "ALARMS"; render()
     }
     private fun upsertNamedAlarm(title: String, time: String, category: String) {
@@ -304,7 +310,16 @@ class MainActivity : Activity() {
             p.getOrNull(0)?.toIntOrNull() ?: 7, p.getOrNull(1)?.toIntOrNull() ?: 0, true).show()
     }
 
-    private fun loadTasks(): JSONArray = try { JSONArray(prefs.getString("tasks", "[]")) } catch (_: Exception) { JSONArray() }
+    private fun loadTasks(): JSONArray {
+        val today = LocalDate.now().toString()
+        val a = try { JSONArray(prefs.getString("tasks", "[]")) } catch (_: Exception) { JSONArray() }
+        if (prefs.getString("task_date", "") != today) {
+            for (i in 0 until a.length()) a.optJSONObject(i)?.put("done", false)
+            prefs.edit().putString("task_date", today).apply()
+            saveTasks(a)
+        }
+        return a
+    }
     private fun saveTasks(a: JSONArray) { prefs.edit().putString("tasks", a.toString()).apply() }
     private fun addTaskDialog() {
         val input = EditText(this).apply { hint = "e.g. Pack ID card and water bottle"; setTextColor(Color.WHITE); setHintTextColor(muted) }
