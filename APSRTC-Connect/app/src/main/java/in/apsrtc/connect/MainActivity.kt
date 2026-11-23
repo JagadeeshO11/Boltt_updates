@@ -210,30 +210,34 @@ fun LiveScreen(modifier: Modifier, status: String, buses: List<LiveBus>, arrival
         Text(if (telugu) "ప్రత్యక్ష బస్సులు" else "Live APSRTC buses", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-        if (buses.isEmpty()) Text(if (telugu) "ప్రస్తుతం లైవ్ బస్సుల సమాచారం అందుబాటులో లేదు" else "No live vehicle positions are currently available.")
-        LazyColumn {
-            items(buses.take(300)) { bus ->
-                ListItem(
-                    headlineContent = { Text(bus.label) },
-                    supportingContent = { Text(if (bus.routeId.isBlank()) "Route not matched" else "Route: ${bus.routeId}") },
-                    leadingContent = { Icon(Icons.Default.DirectionsBus, null) },
-                    trailingContent = { Text("GPS") }
-                )
-                HorizontalDivider()
-            }
+        if (buses.isEmpty() && arrivals.isEmpty()) {
+            Text(if (telugu) "ప్రస్తుతం లైవ్ సమాచారం అందుబాటులో లేదు" else "No live vehicle positions or arrival updates are currently available.")
         }
-        if (arrivals.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Arrival predictions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            arrivals.take(35).forEach { arrival ->
-                val stopName = stops.firstOrNull { it.id == arrival.stopId }?.name ?: arrival.stopId
-                val time = arrival.arrivalEpoch?.let { SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(it * 1000)) } ?: "Time unavailable"
-                ListItem(
-                    headlineContent = { Text(stopName) },
-                    supportingContent = { Text("Route ${arrival.routeId.ifBlank { "unmatched" }} • ${time}") },
-                    trailingContent = { arrival.delay?.let { Text(if (it >= 0) "+${it / 60}m" else "${it / 60}m") } }
-                )
-                HorizontalDivider()
+        LazyColumn(Modifier.weight(1f)) {
+            if (buses.isNotEmpty()) {
+                item { Text(if (telugu) "బస్సుల స్థానాలు" else "Vehicle positions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                items(buses.take(300)) { bus ->
+                    ListItem(
+                        headlineContent = { Text(bus.label) },
+                        supportingContent = { Text(if (bus.routeId.isBlank()) "Route not matched" else "Route: ${bus.routeId}") },
+                        leadingContent = { Icon(Icons.Default.DirectionsBus, null) },
+                        trailingContent = { Text("GPS") }
+                    )
+                    HorizontalDivider()
+                }
+            }
+            if (arrivals.isNotEmpty()) {
+                item { Text("Arrival predictions", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                items(arrivals.take(100)) { arrival ->
+                    val stopName = stops.firstOrNull { it.id == arrival.stopId }?.name ?: arrival.stopId
+                    val time = arrival.arrivalEpoch?.let { SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(it * 1000)) } ?: "Time unavailable"
+                    ListItem(
+                        headlineContent = { Text(stopName) },
+                        supportingContent = { Text("Route ${arrival.routeId.ifBlank { "unmatched" }} • ${time}") },
+                        trailingContent = { arrival.delay?.let { Text(if (it >= 0) "+${it / 60}m" else "${it / 60}m") } }
+                    )
+                    HorizontalDivider()
+                }
             }
         }
     }
