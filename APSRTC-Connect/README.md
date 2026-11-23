@@ -18,7 +18,7 @@ Android-first APSRTC companion app built with Kotlin and Jetpack Compose.
 - Feed status: https://maps.reclaim.city/apsrtc/rt/status.json
 - API documentation: https://api.reclaim.city/docs/#buses
 
-The feed is unofficial and should be shown with freshness information. APSRTC's source refresh is approximately every 60 seconds; this app refreshes only when requested in this starter build. Do not present stale positions as live.
+The feed is unofficial and should be shown with freshness information. APSRTC's source refresh is approximately every 60 seconds; the app polls the realtime feeds every 30 seconds and displays feed freshness. Do not present stale positions as live.
 
 ## Build locally
 Requires JDK 17, Android SDK 35 and Gradle 8.9.
@@ -34,7 +34,7 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`
 Open Actions → Build APSRTC Connect APK → Run workflow. The generated debug APK is available as the `APSRTC-Connect-debug` artifact.
 
 ## Notes
-- Nearby stops need Android location permission and a location-based stop filter; location permissions are declared but the permission flow is not yet wired in this starter.
+- Nearby stops request Android location permission and sort GTFS stops by distance from the device's last known location.
 - The map uses OpenStreetMap tiles and Leaflet via the WebView.
-- Arrival trip updates are parsed from the GTFS-Realtime JSON mapping. UI stop-specific arrival rendering and route-to-trip enrichment are next iteration items.
+- Arrival trip updates are parsed from the GTFS-Realtime JSON mapping and displayed with stop names, expected times and delay when supplied.
 - Feed attribution: reclaim.city and OpenStreetMap contributors. Check source licences before commercial distribution.
