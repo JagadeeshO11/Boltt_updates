@@ -273,7 +273,7 @@ class MainActivity : Activity() {
         AlarmStore.add(this, "Breakfast / meal 1", "07:30", "FOOD")
         AlarmStore.add(this, "Lunch / meal 2", "13:00", "FOOD")
         AlarmStore.add(this, "Dinner / meal 3", "20:30", "FOOD")
-        Toast.makeText(this, "3 meal reminders added. Adjust times for your shift.", Toast.LENGTH_LONG).show()
+        promptExactAlarmAccess()\n        Toast.makeText(this, "3 meal reminders added. Adjust times for your shift.", Toast.LENGTH_LONG).show()
         tab = "ALARMS"; render()
     }
     private fun upsertNamedAlarm(title: String, time: String, category: String) {
@@ -281,7 +281,7 @@ class MainActivity : Activity() {
         if (old == null) AlarmStore.add(this, title, time, category)
         else AlarmStore.update(this, old.copy(time = time, enabled = true))
     }
-    private fun pickTime(current: String, done: (String) -> Unit) {
+    private fun promptExactAlarmAccess() {\n        if (Build.VERSION.SDK_INT >= 31) {\n            val manager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager\n            if (!manager.canScheduleExactAlarms()) {\n                try { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { }\n            }\n        }\n    }\n\n    override fun onResume() {\n        super.onResume()\n        AlarmScheduler.rescheduleAll(this)\n    }\n\n    private fun pickTime(current: String, done: (String) -> Unit) {
         val p = current.split(":")
         TimePickerDialog(this, { _, h, m -> done("%02d:%02d".format(h, m)) },
             p.getOrNull(0)?.toIntOrNull() ?: 7, p.getOrNull(1)?.toIntOrNull() ?: 0, true).show()
